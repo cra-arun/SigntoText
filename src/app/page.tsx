@@ -1,5 +1,6 @@
 import { AppLogo } from '@/components/app-logo';
 import { CameraFeed } from '@/components/camera-feed';
+import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { Separator } from '@/components/ui/separator';
 
 export default function Home() {
@@ -8,6 +9,7 @@ export default function Home() {
       <header className="py-6 px-4 md:px-8 border-b">
         <div className="container mx-auto flex items-center justify-between">
           <AppLogo />
+          <ThemeToggleButton />
         </div>
       </header>
 
