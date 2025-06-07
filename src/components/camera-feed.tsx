@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { recognizeSignLanguage } from '@/ai/flows/recognize-sign-language';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, CameraOff, MessageSquareText, Loader2, AlertTriangle, Zap, Trash2, Copy } from 'lucide-react';
+import { Camera, CameraOff, MessageSquareText, Loader2, AlertTriangle, Zap, Trash2, Copy, Play, Pause } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 const RECOGNITION_INTERVAL_MS = 5000; // Recognize every 5 seconds
@@ -15,12 +15,13 @@ export function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [recognizedText, setRecognizedText] = useState<string>(""); // Store the accumulating sentence
+  const [recognizedText, setRecognizedText] = useState<string>(""); 
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recognitionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isRecognitionPaused, setIsRecognitionPaused] = useState(false);
 
   const { toast } = useToast();
 
@@ -42,13 +43,15 @@ export function CameraFeed() {
     setIsCameraActive(false);
     setError(null);
     setIsCameraLoading(false);
-    setRecognizedText(""); // Clear sentence when camera stops
+    setRecognizedText(""); 
+    setIsRecognitionPaused(false);
   }, []);
 
   const startCamera = useCallback(async () => {
     setError(null);
     setIsCameraLoading(true);
-    setRecognizedText(""); // Reset sentence when (re)starting camera
+    setRecognizedText(""); 
+    setIsRecognitionPaused(false);
 
     if (!videoRef.current) {
       setError("Video element not ready. Please try again.");
@@ -150,7 +153,7 @@ export function CameraFeed() {
   }, []); 
 
   const performRecognition = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !isCameraActive || isRecognizing) {
+    if (!videoRef.current || !canvasRef.current || !isCameraActive || isRecognizing || isRecognitionPaused) {
       return;
     }
 
@@ -200,10 +203,10 @@ export function CameraFeed() {
       });
     }
     setIsRecognizing(false);
-  }, [isCameraActive, isRecognizing, toast]); 
+  }, [isCameraActive, isRecognizing, toast, isRecognitionPaused]); 
 
   useEffect(() => {
-    if (isCameraActive && !isRecognizing) { 
+    if (isCameraActive && !isRecognizing && !isRecognitionPaused) { 
       if (recognitionIntervalRef.current) {
         clearInterval(recognitionIntervalRef.current);
       }
@@ -222,7 +225,7 @@ export function CameraFeed() {
         clearInterval(recognitionIntervalRef.current);
       }
     };
-  }, [isCameraActive, isRecognizing, performRecognition]);
+  }, [isCameraActive, isRecognizing, performRecognition, isRecognitionPaused]);
 
   const clearRecognizedText = () => {
     setRecognizedText("");
@@ -250,6 +253,15 @@ export function CameraFeed() {
     }
   };
 
+  const togglePauseRecognition = () => {
+    setIsRecognitionPaused(prev => !prev);
+    toast({
+      title: `Recognition ${isRecognitionPaused ? "Resumed" : "Paused"}`,
+      description: isRecognitionPaused 
+        ? "The app will now continue to recognize signs."
+        : "Automatic sign recognition is paused.",
+    });
+  };
 
   return (
     <div className="space-y-6 w-full max-w-2xl mx-auto">
@@ -332,6 +344,11 @@ export function CameraFeed() {
         <CardContent className="min-h-[60px] flex items-center justify-center p-4">
           {!isCameraActive ? (
              <p className="text-muted-foreground text-center">Start the camera to begin automatic recognition.</p>
+          ) : isRecognitionPaused ? (
+             <p className="text-muted-foreground text-center flex items-center gap-2">
+                <Pause className="w-5 h-5 text-amber-500" />
+                Recognition paused. Click Resume to continue.
+             </p>
           ) : recognizedText ? (
             <div className="flex items-center gap-2">
               <p className="text-xl md:text-2xl font-medium text-center">{recognizedText}</p>
@@ -347,7 +364,16 @@ export function CameraFeed() {
           )}
         </CardContent>
         {isCameraActive && (
-          <CardFooter className="flex flex-col sm:flex-row justify-end items-center gap-2 pt-4 border-t">
+          <CardFooter className="flex flex-col sm:flex-row justify-end items-center gap-2 pt-4 border-t flex-wrap">
+            <Button 
+              onClick={togglePauseRecognition}
+              variant="outline" 
+              size="sm"
+              disabled={isRecognizing}
+            >
+              {isRecognitionPaused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />}
+              {isRecognitionPaused ? "Resume" : "Pause"} Recognition
+            </Button>
             <Button 
               onClick={copyRecognizedText} 
               variant="outline" 
