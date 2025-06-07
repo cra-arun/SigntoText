@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { recognizeSignLanguage } from '@/ai/flows/recognize-sign-language';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, CameraOff, MessageSquareText, Loader2, AlertTriangle, Zap } from 'lucide-react';
+import { Camera, CameraOff, MessageSquareText, Loader2, AlertTriangle, Zap, Trash2, Copy } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 const RECOGNITION_INTERVAL_MS = 5000; // Recognize every 5 seconds
@@ -141,13 +141,13 @@ export function CameraFeed() {
   }, [toast, stopCamera]);
 
   useEffect(() => {
-    if (!isCameraActive && !isCameraLoading && !error) { // Added !error to prevent retrying if there was a startup error
+    if (!isCameraActive && !isCameraLoading && !error) {
       startCamera();
     }
     return () => {
       stopCamera();
     };
-  }, []); // Intentionally empty to run once on mount
+  }, []); 
 
   const performRecognition = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isCameraActive || isRecognizing) {
@@ -170,7 +170,7 @@ export function CameraFeed() {
         const result = await recognizeSignLanguage({ photoDataUri });
         if (result.recognizedText) {
           const newWord = result.recognizedText.trim();
-          if (newWord) { // Only append if the new word is not empty
+          if (newWord) { 
             setRecognizedText(prevText => 
               prevText ? `${prevText} ${newWord}` : newWord
             );
@@ -200,10 +200,10 @@ export function CameraFeed() {
       });
     }
     setIsRecognizing(false);
-  }, [isCameraActive, isRecognizing, toast]); // Removed recognizeSignLanguage, recognizedText from deps
+  }, [isCameraActive, isRecognizing, toast]); 
 
   useEffect(() => {
-    if (isCameraActive && !isRecognizing) { // Check !isRecognizing to prevent multiple intervals
+    if (isCameraActive && !isRecognizing) { 
       if (recognitionIntervalRef.current) {
         clearInterval(recognitionIntervalRef.current);
       }
@@ -223,6 +223,32 @@ export function CameraFeed() {
       }
     };
   }, [isCameraActive, isRecognizing, performRecognition]);
+
+  const clearRecognizedText = () => {
+    setRecognizedText("");
+    toast({
+      title: "Sentence Cleared",
+      description: "The recognized sentence has been cleared.",
+    });
+  };
+
+  const copyRecognizedText = async () => {
+    if (!recognizedText) return;
+    try {
+      await navigator.clipboard.writeText(recognizedText);
+      toast({
+        title: "Sentence Copied",
+        description: "The recognized sentence has been copied to your clipboard.",
+      });
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+      toast({
+        title: "Copy Failed",
+        description: "Could not copy the sentence to your clipboard.",
+        variant: "destructive",
+      });
+    }
+  };
 
 
   return (
@@ -320,6 +346,26 @@ export function CameraFeed() {
              </p>
           )}
         </CardContent>
+        {isCameraActive && (
+          <CardFooter className="flex flex-col sm:flex-row justify-end items-center gap-2 pt-4 border-t">
+            <Button 
+              onClick={copyRecognizedText} 
+              variant="outline" 
+              size="sm"
+              disabled={!recognizedText || isRecognizing}
+            >
+              <Copy className="mr-2 h-4 w-4" /> Copy Sentence
+            </Button>
+            <Button 
+              onClick={clearRecognizedText} 
+              variant="outline" 
+              size="sm"
+              disabled={!recognizedText || isRecognizing}
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> Clear Sentence
+            </Button>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );
