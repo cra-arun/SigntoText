@@ -1,4 +1,3 @@
-// 'use server'
 
 'use server';
 
@@ -39,9 +38,11 @@ const recognizeSignLanguagePrompt = ai.definePrompt({
   name: 'recognizeSignLanguagePrompt',
   input: {schema: RecognizeSignLanguageInputSchema},
   output: {schema: RecognizeSignLanguageOutputSchema},
-  prompt: `You are an expert in sign language translation.
-
-You will receive an image of a hand signing, and you will output the corresponding text.
+  prompt: `You are an advanced AI expert specializing in American Sign Language (ASL) translation.
+Your task is to interpret images of hand signs and provide the corresponding English word or phrase.
+Strive for accuracy and attempt to recognize a comprehensive range of ASL signs.
+If a sign is unclear or ambiguous, provide your best interpretation.
+The output should be the translated text only.
 
 Sign Image: {{media url=photoDataUri}}`,
 });
