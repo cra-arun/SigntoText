@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Camera, CameraOff, MessageSquareText, Loader2, AlertTriangle, Zap } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
-const RECOGNITION_INTERVAL_MS = 3000; // Recognize every 3 seconds
+const RECOGNITION_INTERVAL_MS = 5000; // Recognize every 5 seconds
 
 export function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -179,11 +179,20 @@ export function CameraFeed() {
       } catch (err) {
         console.error("Error recognizing sign:", err);
         // Display a toast for recognition errors, but don't stop the camera or continuous process.
-        toast({
-          title: "Recognition Error",
-          description: "Could not recognize the sign. Will keep trying.",
-          variant: "destructive",
-        });
+        // Check if the error is a rate limit error to provide a more specific message
+        if (err instanceof Error && (err.message.includes('429') || err.message.toLowerCase().includes('quota'))) {
+            toast({
+              title: "API Rate Limit Exceeded",
+              description: "Too many recognition attempts. Please wait a moment. The interval has been adjusted.",
+              variant: "destructive",
+            });
+        } else {
+            toast({
+              title: "Recognition Error",
+              description: "Could not recognize the sign. Will keep trying.",
+              variant: "destructive",
+            });
+        }
       }
     } else {
       toast({
