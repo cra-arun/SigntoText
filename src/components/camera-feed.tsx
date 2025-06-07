@@ -15,7 +15,7 @@ export function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [recognizedText, setRecognizedText] = useState<string | null>(null);
+  const [recognizedText, setRecognizedText] = useState<string>(""); // Store the accumulating sentence
   const [isRecognizing, setIsRecognizing] = useState(false);
   const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,14 +40,15 @@ export function CameraFeed() {
       videoRef.current.onerror = null;
     }
     setIsCameraActive(false);
-    setError(null); 
+    setError(null);
     setIsCameraLoading(false);
-    setRecognizedText(null); // Clear text when camera stops
+    setRecognizedText(""); // Clear sentence when camera stops
   }, []);
 
   const startCamera = useCallback(async () => {
     setError(null);
     setIsCameraLoading(true);
+    setRecognizedText(""); // Reset sentence when (re)starting camera
 
     if (!videoRef.current) {
       setError("Video element not ready. Please try again.");
@@ -82,7 +83,7 @@ export function CameraFeed() {
               console.error("Error playing video:", playError);
               setError("Could not play video. Autoplay might be blocked.");
               setIsCameraActive(false);
-              stopCamera(); 
+              stopCamera();
             }).finally(() => {
               setIsCameraLoading(false);
             });
@@ -91,11 +92,11 @@ export function CameraFeed() {
           videoRef.current.onerror = () => {
             setError("Video stream error. Camera might be disconnected or an issue occurred.");
             setIsCameraActive(false);
-            stopCamera(); 
+            stopCamera();
             setIsCameraLoading(false);
           };
         } else {
-          stream.getTracks().forEach(track => track.stop()); 
+          stream.getTracks().forEach(track => track.stop());
           setError("Video element reference lost during camera start.");
           setIsCameraActive(false);
           setIsCameraLoading(false);
@@ -140,16 +141,13 @@ export function CameraFeed() {
   }, [toast, stopCamera]);
 
   useEffect(() => {
-    // Attempt to start camera on mount if not already active or loading.
-    // This addresses the initial "Camera is off" state.
-    if (!isCameraActive && !isCameraLoading) {
+    if (!isCameraActive && !isCameraLoading && !error) { // Added !error to prevent retrying if there was a startup error
       startCamera();
     }
-    // Cleanup on unmount
     return () => {
       stopCamera();
     };
-  }, []); // Run once on mount and clean up on unmount
+  }, []); // Intentionally empty to run once on mount
 
   const performRecognition = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isCameraActive || isRecognizing) {
@@ -157,8 +155,6 @@ export function CameraFeed() {
     }
 
     setIsRecognizing(true);
-    // Keep current error related to camera, but if recognition is happening,
-    // we don't clear recognized text until a new result or error.
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -172,14 +168,16 @@ export function CameraFeed() {
 
       try {
         const result = await recognizeSignLanguage({ photoDataUri });
-        // Only update if the new text is different, to avoid flickering for same result
-        if (result.recognizedText !== recognizedText) {
-            setRecognizedText(result.recognizedText);
+        if (result.recognizedText) {
+          const newWord = result.recognizedText.trim();
+          if (newWord) { // Only append if the new word is not empty
+            setRecognizedText(prevText => 
+              prevText ? `${prevText} ${newWord}` : newWord
+            );
+          }
         }
       } catch (err) {
         console.error("Error recognizing sign:", err);
-        // Display a toast for recognition errors, but don't stop the camera or continuous process.
-        // Check if the error is a rate limit error to provide a more specific message
         if (err instanceof Error && (err.message.includes('429') || err.message.toLowerCase().includes('quota'))) {
             toast({
               title: "API Rate Limit Exceeded",
@@ -202,10 +200,10 @@ export function CameraFeed() {
       });
     }
     setIsRecognizing(false);
-  }, [isCameraActive, isRecognizing, toast, recognizeSignLanguage, recognizedText]);
+  }, [isCameraActive, isRecognizing, toast]); // Removed recognizeSignLanguage, recognizedText from deps
 
   useEffect(() => {
-    if (isCameraActive && !isRecognizing) {
+    if (isCameraActive && !isRecognizing) { // Check !isRecognizing to prevent multiple intervals
       if (recognitionIntervalRef.current) {
         clearInterval(recognitionIntervalRef.current);
       }
@@ -238,17 +236,17 @@ export function CameraFeed() {
         </CardHeader>
         <CardContent>
           <div className="relative aspect-video bg-muted rounded-md overflow-hidden flex items-center justify-center">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
               className={cn(
                 "w-full h-full object-cover",
-                { 'opacity-0': isCameraLoading || (!isCameraActive && !error) } 
-              )} 
+                { 'opacity-0': isCameraLoading || (!isCameraActive && !error) }
+              )}
             />
-            
+
             {(isCameraLoading || !isCameraActive) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-muted/90">
                 {isCameraLoading ? (
@@ -302,31 +300,28 @@ export function CameraFeed() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-headline">
             <MessageSquareText className="w-6 h-6 text-primary" />
-            Recognized Text
+            Recognized Sentence
           </CardTitle>
         </CardHeader>
-        <CardContent className="min-h-[60px] flex items-center justify-center">
-          {isCameraActive && isRecognizing && !recognizedText && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
-          {isCameraActive && isRecognizing && recognizedText && (
+        <CardContent className="min-h-[60px] flex items-center justify-center p-4">
+          {!isCameraActive ? (
+             <p className="text-muted-foreground text-center">Start the camera to begin automatic recognition.</p>
+          ) : recognizedText ? (
             <div className="flex items-center gap-2">
-                 <Loader2 className="h-6 w-6 animate-spin text-primary/70" />
-                 <p className="text-2xl font-medium text-center">{recognizedText}</p>
+              <p className="text-xl md:text-2xl font-medium text-center">{recognizedText}</p>
+              {isRecognizing && <Loader2 className="h-5 w-5 animate-spin text-primary/80" />}
             </div>
-          )}
-          {!isRecognizing && recognizedText && (
-            <p className="text-2xl font-medium text-center">{recognizedText}</p>
-          )}
-          {isCameraActive && !isRecognizing && !recognizedText && (
+          ) : isRecognizing ? (
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          ) : (
              <p className="text-muted-foreground text-center flex items-center gap-2">
                 <Zap className="w-5 h-5 text-green-500" />
-                Actively recognizing signs...
+                Actively recognizing signs... Make a sign!
              </p>
-          )}
-          {!isCameraActive && !recognizedText && (
-             <p className="text-muted-foreground text-center">Start the camera to begin automatic recognition.</p>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
+
