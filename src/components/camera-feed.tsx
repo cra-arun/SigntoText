@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -18,7 +19,18 @@ export function CameraFeed() {
 
   const { toast } = useToast();
 
-  const startCamera = async () => {
+  const stopCamera = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
+  }, []); // videoRef and mediaStreamRef are stable, setIsCameraActive is stable
+
+  const startCamera = useCallback(async () => {
     setError(null);
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
@@ -45,25 +57,16 @@ export function CameraFeed() {
         description: "Your browser does not support the camera API.",
         variant: "destructive",
       });
+      setIsCameraActive(false); // Ensure state is updated
     }
-  };
-
-  const stopCamera = useCallback(() => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setIsCameraActive(false);
-  }, []);
+  }, [toast]); // Dependencies: setIsCameraActive, setError are stable. videoRef, mediaStreamRef are stable. toast is likely stable.
 
   useEffect(() => {
+    startCamera(); // Attempt to start camera on mount
     return () => {
       stopCamera(); // Ensure camera is stopped when component unmounts
     };
-  }, [stopCamera]);
+  }, [startCamera, stopCamera]);
 
   const handleRecognizeSign = async () => {
     if (!videoRef.current || !canvasRef.current || !isCameraActive) return;
@@ -116,11 +119,13 @@ export function CameraFeed() {
         <CardContent>
           <div className="aspect-video bg-muted rounded-md overflow-hidden flex items-center justify-center">
             {isCameraActive ? (
-              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             ) : (
               <div className="text-muted-foreground p-4 text-center">
                 <CameraOff className="w-16 h-16 mx-auto mb-2" />
-                Camera is off. Click "Start Camera" to begin.
+                {error ? "Camera failed to start." : "Camera is off or initializing..."}
+                <br />
+                {error ? "Please check permissions and try again." : "If it doesn't start, try the button below."}
               </div>
             )}
           </div>
@@ -149,7 +154,7 @@ export function CameraFeed() {
         </CardFooter>
       </Card>
 
-      {error && (
+      {error && !isCameraActive && ( // Show main error message only if camera is not active
         <div className="p-4 bg-destructive/10 text-destructive rounded-md flex items-center gap-2">
           <AlertTriangle className="w-5 h-5"/>
           <p>{error}</p>
@@ -168,11 +173,14 @@ export function CameraFeed() {
           {!isLoading && recognizedText && (
             <p className="text-2xl font-medium text-center">{recognizedText}</p>
           )}
-          {!isLoading && !recognizedText && !error && (
-            <p className="text-muted-foreground text-center">Perform a sign and click "Recognize Sign".</p>
+          {!isLoading && !recognizedText && !error && ( // Adjusted condition
+            <p className="text-muted-foreground text-center">Perform a sign and click "Recognize Sign" once the camera is active.</p>
           )}
-           {!isLoading && !recognizedText && error && (
+           {!isLoading && !recognizedText && error && isCameraActive && ( // Error during recognition
             <p className="text-muted-foreground text-center">Recognition failed. Try again.</p>
+          )}
+           {!isLoading && !recognizedText && !isCameraActive && ( // Camera not active message
+            <p className="text-muted-foreground text-center">Start the camera to begin recognition.</p>
           )}
         </CardContent>
       </Card>
