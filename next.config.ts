@@ -1,7 +1,12 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
+
+const isGithubPages = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  output: 'export',
+  basePath: isGithubPages ? '/SigntoText' : '',
+  assetPrefix: isGithubPages ? '/SigntoText/' : '',
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
   },
